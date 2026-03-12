@@ -1,0 +1,144 @@
+import React, { useState, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom';
+import { useActiveAccount, ConnectButton } from "thirdweb/react";
+import { client } from "../client";
+import { CustomButton } from './';
+import { logo, menu, search, thirdweb } from '../assets';
+import { navlinks } from '../constants';
+import WalletDropdown from "../components/WalletDropdown";
+
+const Navbar = () => {
+  const navigate = useNavigate();
+  const [isActive, setIsActive] = useState('dashboard');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [toggleDrawer, setToggleDrawer] = useState(false);
+  const account = useActiveAccount();
+  const address = account?.address;
+  const [darkMode, setDarkMode] = useState(() => {
+    return localStorage.getItem("theme") === "dark";
+  });
+
+  const handleSearch = () => {
+
+    if (!searchQuery.trim()) return;
+
+    navigate(`/search/${searchQuery.trim()}`);
+  };
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  }, [darkMode]);
+
+  return (
+    <div className="flex md:flex-row flex-col-reverse justify-between mb-[35px] gap-6 transition-colors duration-300">
+      <div className="lg:flex-1 flex flex-row max-w-[458px] py-2 pl-4 pr-2 h-[52px]  rounded-[100px] bg-gray-100 dark:bg-[#1c1c24]" >
+        <input type="text"  placeholder="Search for campaigns" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            navigate(`/search/${searchQuery}`);
+          }
+        }}
+          className="flex w-full font-epilogue font-normal text-[14px] placeholder:text-[#4b5264] text-black dark:text-white bg-transparent outline-none"
+        />
+
+        <div
+          onClick={() => navigate(`/search/${searchQuery}`)}
+          className="w-[72px] h-full rounded-[20px] bg-[#4acd8d] flex justify-center items-center cursor-pointer">
+          <img src={search} alt="search" className="w-[15px] h-[15px] object-contain" />
+        </div>
+      </div>
+
+      <div className="sm:flex hidden flex-row justify-end gap-4">
+        <button
+          onClick={() => setDarkMode(!darkMode)}
+          className="w-[52px] h-[52px] rounded-full bg-gray-200 dark:bg-[#2c2f32] text-black dark:text-white flex justify-center items-center cursor-pointer transition"
+        >
+          {darkMode ? "☀️" : "🌙"}
+        </button>
+        {address ? (
+          <CustomButton
+            btnType="button"
+            title="Create a campaign"
+            styles="bg-[#1dc071]"
+            handleClick={() => navigate('create-campaign')}
+          />
+        ) : (
+          <ConnectButton
+            client={client}
+            theme={darkMode ? "dark" : "light"}
+            connectButton={{
+              style: {
+                backgroundColor: darkMode ? "#2c2f32" : "#e5e7eb",
+                color: darkMode ? "#ffffff" : "#000000",
+                borderRadius: "9999px",
+                height: "52px",
+                padding: "0 16px",
+                fontWeight: "600",
+              }
+            }}
+          />
+        )}
+      {address && <WalletDropdown />}
+      </div>
+
+      {/* Small screen navigation */}
+      <div className="sm:hidden flex justify-between items-center relative">
+        <div className="w-[40px] h-[40px] rounded-[10px] bg-gray-200 dark:bg-[#2c2f32] flex justify-center items-center cursor-pointer transition-colors duration-300">
+          <img src={logo} alt="user" className="w-[60%] h-[60%] object-contain" />
+        </div>
+
+        <img
+          src={menu}
+          alt="menu"
+          className="w-[34px] h-[34px] object-contain cursor-pointer"
+          onClick={() => setToggleDrawer((prev) => !prev)}
+        />
+
+        <div className={`absolute top-[60px] right-0 left-0 bg-white dark:bg-[#1c1c24] z-10 shadow-secondary py-4 ${!toggleDrawer ? '-translate-y-[100vh]' : 'translate-y-0'} transition-all duration-700`}>
+          <ul className="mb-4">
+            {navlinks.map((link) => (
+              <li
+                key={link.name}
+                className={`flex p-4 ${isActive === link.name && 'bg-gray-200 dark:bg-[#3a3a43]'}`}
+                onClick={() => {
+                  setIsActive(link.name);
+                  setToggleDrawer(false);
+                  navigate(link.link);
+                }}
+              >
+                <img
+                  src={link.imgUrl}
+                  alt={link.name}
+                  className={`w-[24px] h-[24px] object-contain ${isActive === link.name ? 'grayscale-0' : 'grayscale'}`}
+                />
+                <p className={`ml-[20px] font-epilogue font-semibold text-[14px] ${isActive === link.name ? 'text-[#1dc071]' : 'text-[#808191]'}`}>
+                  {link.name}
+                </p>
+              </li>
+            ))}
+          </ul>
+
+          <div className="flex mx-4">
+            {address ? (
+              <CustomButton
+                btnType="button"
+                title="Create a campaign"
+                styles="bg-[#1dc071]"
+                handleClick={() => navigate('create-campaign')}
+              />
+            ) : (
+              <ConnectButton client={client} />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default Navbar  
