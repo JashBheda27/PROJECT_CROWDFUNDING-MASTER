@@ -6,20 +6,22 @@ contract CrowdFunding {
     enum Status { Active, Successful, Closed }
 
     struct Campaign {
-        address owner;
-        string title;
-        string description;
-        uint256 target;
-        uint256 deadline;
-        uint256 amountCollected;
-        uint256 withdrawnAmount;
-        string image;
-        string category;
-        Status status;
-        bool closed;
-        address[] donators;
-        uint256[] donations;
-    }
+    address owner;
+    string title;
+    string description;
+    uint256 target;
+    uint256 deadline;
+    uint256 amountCollected;
+    uint256 withdrawnAmount;
+    uint256 createdAt;        
+    string image;
+    string category;
+    Status status;
+    bool closed;
+    address[] donators;
+    uint256[] donations;
+    uint256[] donationTimes;  
+}
 
     struct CampaignView {
         address owner;
@@ -71,6 +73,7 @@ contract CrowdFunding {
         campaign.deadline = _deadline;
         campaign.amountCollected = 0;
         campaign.withdrawnAmount = 0;
+        campaign.createdAt = block.timestamp;
         campaign.image = _image;
         campaign.category = _category;
         campaign.status = Status.Active;
@@ -92,6 +95,7 @@ contract CrowdFunding {
 
         campaign.donators.push(msg.sender);
         campaign.donations.push(msg.value);
+        campaign.donationTimes.push(block.timestamp);
 
         campaign.amountCollected += msg.value;
         donationsByUser[_id][msg.sender] += msg.value;
@@ -192,6 +196,14 @@ contract CrowdFunding {
         returns (address[] memory, uint256[] memory)
     {
         return (campaigns[_id].donators, campaigns[_id].donations);
+    }
+
+    function getDonationTimes(uint256 _id)
+    public
+    view
+    returns (uint256[] memory)
+    {
+    return campaigns[_id].donationTimes;
     }
 
     // GET CAMPAIGNS (FRONTEND SAFE)
