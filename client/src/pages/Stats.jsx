@@ -9,6 +9,7 @@ import {
   FaCheckCircle,
   FaTimesCircle,
   FaPlayCircle,
+  FaChartBar,
 } from "react-icons/fa";
 
 import {
@@ -100,13 +101,22 @@ const Stats = () => {
   }, [getCampaigns, getDonations]);
 
   return (
-    <div className="p-6 transition-colors duration-300">
+    <div className="p-6 min-h-screen bg-gradient-to-br from-gray-50 via-blue-100 to-purple-100 dark:bg-gradient-to-b dark:from-[#0f0f1a] dark:via-[#111827] dark:to-[#020617]">
+      <div className="flex items-center gap-3 mb-10">
 
-      <h1 className="text-2xl font-bold mb-8 text-gray-800 dark:text-white">
-        Platform Statistics
-      </h1>
+        <div className="p-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/30">
+          <FaChartBar size={20} />
+        </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
+          Platform Statistics
+        </h1>
+
+      </div>
+
+      {/* Stats Cards */}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
 
         <StatCard
           title="Total Campaigns"
@@ -152,14 +162,18 @@ const Stats = () => {
 
       </div>
 
+      {/* Recent Donations */}
+
       <div className="mb-12">
-        <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">
+        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-black dark:text-white">
+          <FaHandHoldingUsd className="text-green-500" />
           Recent Donations
         </h2>
 
-        <div className="bg-white dark:bg-[#1c1c24] rounded-2xl p-6 shadow-md">
+        <div className="bg-white dark:bg-[#1c1c24] rounded-2xl p-6 shadow-md border border-gray-200 dark:border-gray-800">
 
           <Table>
+
             <TableHeader>
               <TableRow>
                 <TableHead>Donor</TableHead>
@@ -169,17 +183,26 @@ const Stats = () => {
             </TableHeader>
 
             <TableBody>
+
               {recentDonations.length === 0 ? (
+
                 <TableRow>
-                  <TableCell colSpan={3}>
+                  <TableCell colSpan={3} className="text-center py-8 text-gray-500">
                     No donations yet
                   </TableCell>
                 </TableRow>
+
               ) : (
+
                 recentDonations.map((don, i) => (
-                  <TableRow key={i}>
+
+                  <TableRow
+                    key={i}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-900 transition"
+                  >
+
                     <TableCell className="text-gray-800 dark:text-gray-200">
-                      {don.donor?.slice(0, 6)}...
+                      {don.donor?.slice(0, 6)}...{don.donor?.slice(-4)}
                     </TableCell>
 
                     <TableCell className="text-gray-800 dark:text-gray-200">
@@ -189,42 +212,64 @@ const Stats = () => {
                     <TableCell className="font-semibold text-gray-900 dark:text-white">
                       {formatEther(don.amount)} ETH
                     </TableCell>
+
                   </TableRow>
+
                 ))
+
               )}
+
             </TableBody>
+
           </Table>
 
         </div>
       </div>
 
+      {/* Categories */}
+
       <div>
-        <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">
+
+        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-black dark:text-white">
+          <FaBullhorn className="text-blue-500" />
           Campaign Categories
         </h2>
 
-        <div className="bg-white dark:bg-[#1c1c24] rounded-2xl p-6 shadow-md space-y-3">
+        <div className="bg-white dark:bg-[#1c1c24] rounded-2xl p-6 shadow-md border border-gray-200 dark:border-gray-800 space-y-4">
 
           {Object.keys(categoryStats).length === 0 ? (
-            <p className="text-gray-500">No campaigns available</p>
-          ) : (
-            Object.entries(categoryStats).map(([cat, count]) => (
-              <div
-                key={cat}
-                className="flex justify-between border-b border-gray-100 dark:border-gray-800 pb-2"
-              >
-                <span className="text-gray-700 dark:text-gray-300">
-                  {cat}
-                </span>
 
-                <span className="font-semibold text-gray-900 dark:text-white">
-                  {count}
-                </span>
+            <div className="flex flex-col items-center py-6 text-gray-500">
+              <FaBullhorn size={36} />
+              <p className="mt-2">No campaigns available</p>
+            </div>
+
+          ) : (
+
+            Object.entries(categoryStats).map(([cat, count]) => (
+
+              <div key={cat}>
+
+                <div className="flex justify-between text-gray-700 dark:text-gray-300 mb-1">
+                  <span>{cat}</span>
+                  <span className="font-semibold">{count}</span>
+                </div>
+
+                <div className="w-full bg-gray-200 dark:bg-gray-800 h-2 rounded">
+                  <div
+                    className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded"
+                    style={{ width: `${count * 20}%` }}
+                  />
+                </div>
+
               </div>
+
             ))
+
           )}
 
         </div>
+
       </div>
 
     </div>
@@ -232,8 +277,12 @@ const Stats = () => {
 };
 
 const StatCard = ({ title, value, icon, iconBg }) => (
-  <div className="bg-white dark:bg-[#1c1c24] p-6 rounded-2xl shadow-md hover:shadow-xl transition">
-    <div className={`w-12 h-12 flex items-center justify-center rounded-xl text-white bg-gradient-to-r ${iconBg}`}>
+
+  <div className="bg-white dark:bg-[#1c1c24] p-6 rounded-2xl shadow-md hover:shadow-2xl hover:scale-[1.03] transition-all duration-300 border border-gray-200 dark:border-gray-800">
+
+    <div
+      className={`w-12 h-12 flex items-center justify-center rounded-xl text-white bg-gradient-to-r ${iconBg} shadow-lg`}
+    >
       {icon}
     </div>
 
@@ -244,7 +293,9 @@ const StatCard = ({ title, value, icon, iconBg }) => (
     <p className="text-3xl font-bold mt-1 text-gray-800 dark:text-white">
       {value}
     </p>
+
   </div>
+
 );
 
 export default Stats;
