@@ -6,11 +6,12 @@ import { money } from '../assets';
 import { CustomButton, FormField, Loader } from '../components';
 import { checkIfImage } from '../utils';
 import { useEthPrice } from "../context/EthPriceContext";
+import { toast } from "react-toastify";
 
 const CreateCampaign = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const { createCampaign } = useStateContext();
+  const { createCampaign, contract, account } = useStateContext();
   const { ethPriceUSD, ethPriceINR } = useEthPrice();
 
   const [form, setForm] = useState({
@@ -49,11 +50,24 @@ const CreateCampaign = () => {
     console.log("Deadline:", deadline);
     console.log("Current Time:", currentTime);
 
+    // ✅ deadline validation
     if (deadline <= currentTime) {
-      alert("Deadline must be in the future");
+      toast.error("Deadline must be in the future");
       return;
     }
 
+    // ✅ contract check
+    if (!account) {
+      alert("Please connect your wallet");
+      return;
+    }
+
+    if (!contract) {
+      alert("Connecting to blockchain... please wait");
+      return;
+    }
+
+    // ✅ image validation FIRST
     checkIfImage(form.image, async (exists) => {
       if (exists) {
         try {
@@ -65,15 +79,18 @@ const CreateCampaign = () => {
             target: toWei(form.target),
           });
 
-          navigate('/');
+          toast.success("Campaign created successfully 🚀");
+          navigate("/");
+
         } catch (err) {
           console.error(err);
+          toast.error("Transaction failed");
         } finally {
           setIsLoading(false);
         }
       } else {
-        alert('Provide valid image URL');
-        setForm({ ...form, image: '' });
+        toast.error("Provide valid image URL");
+        setForm({ ...form, image: "" });
       }
     });
   };
@@ -86,8 +103,8 @@ const CreateCampaign = () => {
       <div className="w-full max-w-5xl bg-white dark:bg-[#1c1c24] rounded-2xl shadow-lg dark:shadow-none p-6 sm:p-10 transition-colors duration-300">
 
         {/* Header */}
-        <div className="flex justify-center items-center py-4 mb-10 bg-gray-200 dark:bg-[#3a3a43] rounded-xl transition-colors duration-300">
-          <h1 className="font-epilogue font-bold sm:text-[28px] text-[20px] text-gray-800 dark:text-white">
+        <div className="flex justify-center items-center py-4 mb-10 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl transition-colors duration-300">
+          <h1 className="font-epilogue font-bold sm:text-[28px] text-[20px] text-white">
             Start a Campaign
           </h1>
         </div>
@@ -168,8 +185,15 @@ const CreateCampaign = () => {
           <div className="flex justify-center items-center mt-6">
             <CustomButton
               btnType="submit"
-              title="Submit new campaign"
+              title={
+                !account
+                  ? "Connect Wallet"
+                  : !contract
+                    ? "Connecting..."
+                    : "Submit new campaign"
+              }
               styles="bg-gradient-to-r from-purple-500 to-indigo-600 hover:scale-105 transition-transform duration-300"
+              disabled={!account || !contract || isLoading}
             />
           </div>
 

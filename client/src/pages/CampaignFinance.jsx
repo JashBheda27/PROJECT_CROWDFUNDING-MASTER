@@ -4,7 +4,7 @@ import { useActiveAccount } from "thirdweb/react";
 import { formatEther } from "viem";
 import { calculateBarPercentage } from "../utils";
 import { useNavigate } from "react-router-dom";
-
+import { useActiveWalletChain } from "thirdweb/react";
 import {
   FaBullhorn,
   FaUsers,
@@ -18,8 +18,14 @@ import {
 
 const CampaignFinance = () => {
 
-  const { getCampaigns, getDonations, payout, refund } = useStateContext();
+  const { getCampaigns, getDonations, payout, refund, contract } = useStateContext();
   const activeAccount = useActiveAccount();
+  const activeChain = useActiveWalletChain();
+
+  const chainId = activeChain?.id;
+  const contractAddress = contract?.address;
+  const storageKey = `refundHistory_${chainId}_${contractAddress}`;
+
   const navigate = useNavigate();
 
   const [campaigns, setCampaigns] = useState([]);
@@ -36,21 +42,21 @@ const CampaignFinance = () => {
   const [totalRaised, setTotalRaised] = useState(0);
   const [totalBackers, setTotalBackers] = useState(0);
 
-const formatEth = (value) => {
+  const formatEth = (value) => {
 
-  if (!value) return "0.0000";
+    if (!value) return "0.0000";
 
-  const num = Number(value);
+    const num = Number(value);
 
-  // If value is huge → it's Wei
-  if (num > 1000000) {
-    return Number(formatEther(BigInt(value))).toFixed(3);
-  }
+    // If value is huge → it's Wei
+    if (num > 1000000) {
+      return Number(formatEther(BigInt(value))).toFixed(3);
+    }
 
-  // Otherwise it's already ETH
-  return num.toFixed(3);
+    // Otherwise it's already ETH
+    return num.toFixed(3);
 
-};
+  };
 
   const getHealth = (percentage) => {
 
@@ -68,161 +74,168 @@ const formatEth = (value) => {
 
   const fetchCampaignData = async () => {
 
-  const data = await getCampaigns();
-  setCampaigns(data);
+    const data = await getCampaigns();
+    setCampaigns(data);
 
-  const counts = {};
-  const top = {};
-  const withdraws = {};
-  const donationsStorage = {};
+    const counts = {};
+    const top = {};
+    const withdraws = {};
+    const donationsStorage = {};
 
-  let raised = 0n;
-  let backersCount = 0;
+    let raised = 0;
+    let backersCount = 0;
 
-  for (let campaign of data) {
+    for (let campaign of data) {
 
-    raised += BigInt(campaign.amountCollected || 0);
+      raised += Number(campaign.amountCollected || 0);
 
-    const donations = await getDonations(campaign.pId);
+      const donations = await getDonations(campaign.pId);
 
-    donationsStorage[campaign.pId] = donations;
+      donationsStorage[campaign.pId] = donations;
 
-    counts[campaign.pId] = donations.length;
-    backersCount += donations.length;
+      counts[campaign.pId] = donations.length;
+      backersCount += donations.length;
 
-    // FIXED BIGINT SORTING
-    const sorted = donations.sort(
-      (a, b) => (BigInt(b.donation) > BigInt(a.donation) ? 1 : -1)
-    );
+      // FIXED BIGINT SORTING
+      const sorted = donations.sort(
+        ((a, b) => Number(b.donation) - Number(a.donation))
+      );
 
-    top[campaign.pId] = sorted.slice(0, 3);
+      top[campaign.pId] = sorted.slice(0, 3);
 
-    // SAFE BIGINT STORAGE
-    withdraws[campaign.pId] = BigInt(campaign.withdrawnAmount || 0);
-
-  }
-
-  setDonationsMap(donationsStorage);
-  setBackers(counts);
-  setTopDonators(top);
-  setWithdrawHistory(withdraws);
-  setTotalRaised(raised);
-  setTotalBackers(backersCount);
-
-};
-
-useEffect(() => {
-
-  const storedRefunds = localStorage.getItem("refundHistory");
-
-  if (storedRefunds) {
-    setRefundHistory(JSON.parse(storedRefunds));
-  }
-
-  fetchCampaignData();
-
-}, []);
-
-const handleWithdraw = async (pId) => {
-
-  // FIXED BIGINT CHECK
-  if (withdrawHistory[pId] && withdrawHistory[pId] > 0n) {
-
-    setCampaignMessages((prev) => ({
-      ...prev,
-      [pId]: "Funds already withdrawn"
-    }));
-
-    return;
-  }
-
-  try {
-
-    await payout(pId);
-
-    setCampaignMessages((prev) => ({
-      ...prev,
-      [pId]: "Funds withdrawn successfully 🎉"
-    }));
-
-    fetchCampaignData();
-
-  } catch (err) {
-
-    console.error("Withdraw failed:", err);
-
-  }
-
-};
-
-const handleRefund = async (pId) => {
-
-  const refunds = refundHistory[pId] || [];
-
-  const alreadyRefunded = refunds.some(
-    (r) =>
-      r.user?.toLowerCase() ===
-      activeAccount?.address?.toLowerCase()
-  );
-
-  if (alreadyRefunded) {
-
-    setCampaignMessages((prev) => ({
-      ...prev,
-      [pId]: "Refund already claimed"
-    }));
-
-    return;
-
-  }
-
-  try {
-
-    await refund(pId);
-
-    const donations = donationsMap[pId] || [];
-
-    const userDonation = donations.find(
-      (d) =>
-        d.donator?.toLowerCase() ===
-        activeAccount?.address?.toLowerCase()
-    );
-
-    if (userDonation) {
-
-      const updatedHistory = {
-        ...(JSON.parse(localStorage.getItem("refundHistory")) || {}),
-        [pId]: [
-          ...(refundHistory[pId] || []),
-          {
-            user: activeAccount.address,
-            amount: userDonation.donation,
-            time: new Date().toLocaleString(),
-          },
-        ],
-      };
-
-      setRefundHistory(updatedHistory);
-
-      // save in browser so refresh doesn't erase it
-      localStorage.setItem("refundHistory", JSON.stringify(updatedHistory));
+      // SAFE BIGINT STORAGE
+      withdraws[campaign.pId] = Number(campaign.withdrawnAmount || 0);
 
     }
 
-    setCampaignMessages((prev) => ({
-      ...prev,
-      [pId]: "Refund claimed successfully 💸"
-    }));
+    setDonationsMap(donationsStorage);
+    setBackers(counts);
+    setTopDonators(top);
+    setWithdrawHistory(withdraws);
+    setTotalRaised(raised);
+    setTotalBackers(backersCount);
+
+  };
+
+  useEffect(() => {
+
+    if (!chainId || !contractAddress) return;
+
+    const storedRefunds = localStorage.getItem(storageKey);
+
+    if (storedRefunds) {
+      setRefundHistory(JSON.parse(storedRefunds));
+    }
 
     fetchCampaignData();
 
-  } catch (err) {
+  }, [chainId, contractAddress]);
 
-    console.error("Refund failed:", err);
+  const handleWithdraw = async (pId) => {
 
-  }
+    // FIXED BIGINT CHECK
+    if (withdrawHistory[pId] && withdrawHistory[pId] > 0) {
 
-};
+      setCampaignMessages((prev) => ({
+        ...prev,
+        [pId]: "Funds already withdrawn"
+      }));
+
+      return;
+    }
+
+    try {
+
+      await payout(pId);
+
+      setCampaignMessages((prev) => ({
+        ...prev,
+        [pId]: "Funds withdrawn successfully 🎉"
+      }));
+
+      fetchCampaignData();
+
+    } catch (err) {
+
+      console.error("Withdraw failed:", err);
+
+    }
+
+  };
+
+
+
+  const handleRefund = async (pId) => {
+    if (!chainId || !contractAddress) {
+      console.log("Network not ready");
+      return;
+    }
+    const refunds = refundHistory[pId] || [];
+
+    const alreadyRefunded = refunds.some(
+      (r) =>
+        r.user?.toLowerCase() ===
+        activeAccount?.address?.toLowerCase()
+    );
+
+    if (alreadyRefunded) {
+
+      setCampaignMessages((prev) => ({
+        ...prev,
+        [pId]: "Refund already claimed"
+      }));
+
+      return;
+
+    }
+
+    try {
+
+      await refund(pId);
+
+      const donations = donationsMap[pId] || [];
+
+      const userDonation = donations.find(
+        (d) =>
+          d.donator?.toLowerCase() ===
+          activeAccount?.address?.toLowerCase()
+      );
+
+      if (userDonation) {
+
+        const updatedHistory = {
+          ...(JSON.parse(localStorage.getItem(storageKey)) || {}),
+          [pId]: [
+            ...(JSON.parse(localStorage.getItem(storageKey))?.[pId] || []),
+            {
+              user: activeAccount.address,
+              amount: userDonation.donation,
+              time: new Date().toLocaleString(),
+            },
+          ],
+        };
+
+        setRefundHistory(updatedHistory);
+
+        // save in browser so refresh doesn't erase it
+        localStorage.setItem(storageKey, JSON.stringify(updatedHistory));
+
+      }
+
+      setCampaignMessages((prev) => ({
+        ...prev,
+        [pId]: "Refund claimed successfully 💸"
+      }));
+
+      fetchCampaignData();
+
+    } catch (err) {
+
+      console.error("Refund failed:", err);
+
+    }
+
+  };
 
   return (
 
@@ -273,21 +286,21 @@ const handleRefund = async (pId) => {
 
           const health = getHealth(percentage);
 
-         let campaignStatus = "Funding";
-let statusStyle = "bg-blue-100 text-blue-600";
+          let campaignStatus = "Funding";
+          let statusStyle = "bg-blue-100 text-blue-600";
 
-if (Number(campaign.amountCollected) >= Number(campaign.target)) {
+          if (Number(campaign.amountCollected) >= Number(campaign.target)) {
 
-  campaignStatus = "Goal Reached";
-  statusStyle = "bg-green-100 text-green-600";
+            campaignStatus = "Goal Reached";
+            statusStyle = "bg-green-100 text-green-600";
 
-} 
-else if (campaign.status === 2) {
+          }
+          else if (campaign.status === 2) {
 
-  campaignStatus = "Goal Not Reached";
-  statusStyle = "bg-red-100 text-red-600";
+            campaignStatus = "Goal Not Reached";
+            statusStyle = "bg-red-100 text-red-600";
 
-}
+          }
 
           const isOwner =
             activeAccount?.address?.toLowerCase() ===

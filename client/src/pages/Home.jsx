@@ -10,7 +10,7 @@ import FundCard from "../components/FundCard";
 
 const Home = () => {
 
-  const { getCampaigns, getDonations } = useStateContext();
+  const { getCampaigns, getDonations , contract } = useStateContext();
   const account = useActiveAccount();
   const navigate = useNavigate();
 
@@ -19,7 +19,7 @@ const Home = () => {
   const [filter, setFilter] = useState("all");
 
   useEffect(() => {
-
+    if (!contract) return; 
     const fetchData = async () => {
 
       const campaignData = await getCampaigns();
@@ -113,12 +113,14 @@ const Home = () => {
           title="Total Raised"
           value={`${totalRaised.toFixed(2)} ETH`}
           icon={<FaEthereum />}
+          iconBg="from-purple-500 to-pink-500"
         />
 
         <StatCard
           title="Active Campaigns"
           value={activeCampaigns.length}
           icon={<FaBullhorn />}
+          iconBg="from-blue-500 to-indigo-500"
         />
 
         <StatCard

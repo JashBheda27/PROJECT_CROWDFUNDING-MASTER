@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { ThirdwebProvider } from "thirdweb/react";
 import { createThirdwebClient } from "thirdweb";
-import { defineChain } from "thirdweb/chains";
+import { defineChain , sepolia } from "thirdweb/chains";
 import { BrowserRouter } from "react-router-dom";
 import { StateContextProvider } from "./context";
 import { EthPriceProvider } from "./context/EthPriceContext";
@@ -28,7 +28,7 @@ const hardhat = defineChain({
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
-      <ThirdwebProvider client={client} activeChain={hardhat}>
+      <ThirdwebProvider client={client} supportedChains={[sepolia, hardhat]}  >
         <StateContextProvider>
           <EthPriceProvider>
             <App />

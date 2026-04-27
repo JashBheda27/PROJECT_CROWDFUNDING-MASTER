@@ -1,29 +1,40 @@
 import React, { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import { formatEther } from "viem";
 import { useActiveAccount } from "thirdweb/react";
-import { getContract } from "../utils/etherscontract";
 import { useStateContext } from "../context";
 import { calculateBarPercentage, daysLeft } from "../utils";
 import { thirdweb } from "../assets";
 import { useEthPrice } from "../context/EthPriceContext";
+import { readContract } from "thirdweb";
+import { prepareContractCall } from "thirdweb";
+import { useSendTransaction , useActiveWalletChain} from "thirdweb/react";
+import { toast } from "react-toastify";
 
 const CampaignDetails = () => {
+  const { id } = useParams();
   const { state } = useLocation();
-  const navigate = useNavigate();
 
-  const { donate, getDonations, contract, account, closeCampaign, refund } =
-    useStateContext();
+  const pId = Number(id);
 
-  const { ethPriceUSD, ethPriceINR } = useEthPrice();  
+  const { mutateAsync: sendTx } = useSendTransaction();
+
+  const { donate, getDonations, contract, account, closeCampaign, refund } = useStateContext();
+
+  const { ethPriceUSD, ethPriceINR } = useEthPrice();
 
   const activeAccount = useActiveAccount();
 
   const [isLoading, setIsLoading] = useState(false);
   const [amount, setAmount] = useState("");
   const [donators, setDonators] = useState([]);
+  const [campaign, setCampaign] = useState(null);
+  const [error, setError] = useState(null);
 
-   const usdValue =
+  const activeChain = useActiveWalletChain();
+  const chainId = activeChain?.id;
+
+  const usdValue =
     amount && ethPriceUSD
       ? (Number(amount) * ethPriceUSD).toFixed(2)
       : "0.00";
@@ -33,46 +44,28 @@ const CampaignDetails = () => {
       ? (Number(amount) * ethPriceINR).toLocaleString("en-IN")
       : "0";
 
-  if (!state) {
-    return (
-      <div className="text-center mt-10 text-gray-600">
-        Invalid Campaign
-      </div>
-    );
-  }
+  const target = BigInt(campaign?.target || 0);
+  const raised = BigInt(campaign?.amountCollected || 0);
 
-  const formattedTarget = formatEther(BigInt(state.target || 0));
-  const formattedRaised = formatEther(BigInt(state.amountCollected || 0));
+  const formattedTarget = formatEther(target);
+  const formattedRaised = formatEther(raised);
 
-  const target = BigInt(state.target || 0);
-  const raised = BigInt(state.amountCollected || 0);
+  const contractStatus = campaign?.status;
 
   const isOwner =
-    activeAccount?.address?.toLowerCase() === state?.owner?.toLowerCase();
+    activeAccount?.address?.toLowerCase() ===
+    campaign?.owner?.toLowerCase();
 
-  const remainingDays = state.status === 0 ? daysLeft(state.deadline) : 0;
+  const remainingDays =
+    contractStatus === 0 ? daysLeft(Number(campaign?.deadline)) : 0;
 
-  /* ---------------------------------- */
-  /* STATUS LOGIC (FIXED)               */
-  /* ---------------------------------- */
-
+  /* STATUS LOGIC */
   const getStatusInfo = () => {
-    const now = Date.now() / 1000;
-
-    // SUCCESSFUL if goal reached
-    if (raised >= target) {
+    if (contractStatus === 1)
       return { text: "Successful", color: "bg-blue-500" };
-    }
 
-    // ACTIVE if deadline not reached
-    if (state.status === 0 && state.deadline > now) {
+    if (contractStatus === 0)
       return { text: "Active", color: "bg-green-500" };
-    }
-
-    // CLOSED if deadline passed without reaching goal
-    if (state.deadline <= now || state.status === 1) {
-      return { text: "Closed", color: "bg-gray-500" };
-    }
 
     return { text: "Closed", color: "bg-gray-500" };
   };
@@ -84,30 +77,78 @@ const CampaignDetails = () => {
   /* ---------------------------------- */
 
   const fetchDonators = async () => {
-    const data = await getDonations(state.pId);
+    const data = await getDonations(pId);
     setDonators(data);
   };
 
+
+  const fetchCampaign = async () => {
+    if (!contract || isNaN(pId)) return;
+
+    try {
+      const campaigns = await readContract({
+        contract,
+        method:
+          "function getCampaigns() view returns ((address owner, string title, string description, uint256 target, uint256 deadline, uint256 amountCollected, uint256 withdrawnAmount, string image, string category, uint8 status)[])",
+      });
+
+      console.log("Campaigns:", campaigns);
+
+      if (!campaigns || campaigns.length === 0) {
+        toast.error("No campaigns found on this network");
+        return;
+      }
+
+      const campaignData = campaigns[pId];
+
+      if (!campaignData) {
+        setError("Invalid campaign ID");
+        return;
+      }
+
+      setCampaign(campaignData);
+
+    } catch (err) {
+      console.error("Fetch failed:", err);
+      toast.error("Failed to fetch campaign");
+    }
+  };
+
   useEffect(() => {
-    if (contract) fetchDonators();
-  }, [contract, account]);
+    console.log("pId:", pId);
+    console.log("contract:", contract);
+
+    if (!contract) return;
+    if (isNaN(pId)) return;
+
+    fetchCampaign();
+    fetchDonators();
+
+  }, [contract, pId]);
+
+
 
   /* ---------------------------------- */
   /* DONATE                             */
   /* ---------------------------------- */
 
   const handleDonate = async () => {
+    if (isLoading) return;
+
     if (!amount || Number(amount) <= 0) {
-      alert("Enter valid amount");
+      toast.error("Enter valid amount");
       return;
     }
 
     try {
       setIsLoading(true);
-      await donate(state.pId, amount);
-      navigate("/");
+      await donate(pId, amount);
+      toast.success("Donation successful 🎉");
+      await fetchCampaign();
+      await fetchDonators();
     } catch (err) {
-      console.error("Donation failed:", err);
+      console.log(err);
+      toast.error(err?.reason || err?.message);
     } finally {
       setIsLoading(false);
     }
@@ -118,18 +159,31 @@ const CampaignDetails = () => {
   /* ---------------------------------- */
 
   const handlePayout = async () => {
+    if (isLoading) return;
+
     try {
       setIsLoading(true);
 
-      const contract = await getContract();
-      const tx = await contract.payout(state.pId);
+      const tx = prepareContractCall({
+        contract,
+        method: "function payout(uint256 _id)",
+        params: [pId],
+      });
 
-      await tx.wait();
+      await sendTx(tx);
 
-      alert("Funds Withdrawn Successfully 🎉");
-      navigate("/");
+      toast.success("Funds Withdrawn Successfully 🎉");
+
+      await fetchCampaign();
+      await fetchDonators();
     } catch (err) {
-      console.error("Payout failed:", err);
+      console.log(err);
+
+      if (err?.message?.includes("No donation")) {
+        toast.error("Already withdrawn or no funds ❌");
+      } else {
+        toast.error("Withdraw failed ❌");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -140,15 +194,17 @@ const CampaignDetails = () => {
   /* ---------------------------------- */
 
   const handleClose = async () => {
+    if (isLoading) return;
+
     try {
       setIsLoading(true);
 
-      await closeCampaign(state.pId);
-
-      alert("Campaign Closed");
-      navigate("/");
+      await closeCampaign(pId);
+      toast.success("Campaign Closed Successfully 🚫");
+      await fetchCampaign();
     } catch (err) {
-      console.error("Close failed:", err);
+      console.log(err);
+      toast.error(err?.reason || err?.message);
     } finally {
       setIsLoading(false);
     }
@@ -159,15 +215,68 @@ const CampaignDetails = () => {
   /* ---------------------------------- */
 
   const handleRefund = async () => {
+    if (isLoading) return;
+
     try {
       setIsLoading(true);
 
-      await refund(state.pId);
+      const tx = prepareContractCall({
+        contract,
+        method: "function refund(uint256 _id)",
+        params: [pId],
+      });
 
-      alert("Refund claimed successfully 💸");
-      navigate("/");
+      await sendTx(tx);
+      
+      const contractAddress = contract?.address;
+      const storageKey = `refundHistory_${chainId}_${contractAddress}`;
+
+      // get existing
+      const existing = JSON.parse(localStorage.getItem(storageKey)) || {};
+
+      // find user donation
+      const userDonation = donators.find(
+        (d) =>
+          d.donator?.toLowerCase() ===
+          activeAccount?.address?.toLowerCase()
+      );
+
+      if (userDonation) {
+        const alreadyRefunded = (existing[pId] || []).some(
+          (r) =>
+            r.user?.toLowerCase() ===
+            activeAccount?.address?.toLowerCase()
+        );
+
+        if (!alreadyRefunded) {
+          const updatedHistory = {
+            ...existing,
+            [pId]: [
+              ...(existing[pId] || []),
+              {
+                user: activeAccount.address,
+                amount: userDonation.donation,
+                time: new Date().toLocaleString(),
+              },
+            ],
+          };
+
+          localStorage.setItem(storageKey, JSON.stringify(updatedHistory));
+        }
+      }
+
+      toast.success("Refund claimed successfully 💸");
+
+      await fetchCampaign();
+      await fetchDonators();
     } catch (err) {
-      console.error("Refund failed:", err);
+      console.log(err);
+
+      if (err?.message?.includes("No donation")) {
+        toast.error("Already refunded or no donation ❌");
+      } else {
+        toast.error("Refund failed ❌");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -184,7 +293,7 @@ const CampaignDetails = () => {
           {/* IMAGE */}
           <div className="relative">
             <img
-              src={state.image}
+              src={state?.image || "/placeholder.png"}
               alt="campaign"
               className="w-full h-[400px] object-cover rounded-2xl shadow-md"
             />
@@ -199,18 +308,17 @@ const CampaignDetails = () => {
           {/* PROGRESS BAR */}
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
             <div
-              className={`h-2 rounded-full ${
-                statusInfo.text === "Active"
-                  ? "bg-green-500"
-                  : statusInfo.text === "Successful"
+              className={`h-2 rounded-full ${contractStatus === 0
+                ? "bg-green-500"
+                : contractStatus === 1
                   ? "bg-blue-500"
                   : "bg-red-500"
-              }`}
+                }`}
               style={{
-                width: `${calculateBarPercentage(
-                  state.target,
-                  state.amountCollected
-                )}%`,
+                width: `${campaign
+                  ? calculateBarPercentage(target, raised)
+                  : 0
+                  }%`,
               }}
             />
           </div>
@@ -220,7 +328,7 @@ const CampaignDetails = () => {
 
             <div className="bg-white dark:bg-[#1c1c24] p-4 rounded-xl shadow text-center">
               <p className="text-2xl font-bold text-gray-800 dark:text-white">
-                {remainingDays}
+                {campaign ? remainingDays : 0}
               </p>
               <p className="text-sm text-gray-500">Days Left</p>
             </div>
@@ -236,7 +344,7 @@ const CampaignDetails = () => {
 
             <div className="bg-white dark:bg-[#1c1c24] p-4 rounded-xl shadow text-center">
               <p className="text-2xl font-bold text-gray-800 dark:text-white">
-                {donators.length}
+                {donators?.length || 0}
               </p>
               <p className="text-sm text-gray-500">Backers</p>
             </div>
@@ -256,7 +364,7 @@ const CampaignDetails = () => {
               </div>
 
               <p className="text-sm text-gray-700 dark:text-gray-300 break-all">
-                {state.owner}
+                {campaign?.owner}
               </p>
 
             </div>
@@ -269,7 +377,7 @@ const CampaignDetails = () => {
             </h3>
 
             <p className="text-gray-600 dark:text-gray-400 leading-7">
-              {state.description}
+              {state?.description || "No description available"}
             </p>
           </div>
 
@@ -279,9 +387,9 @@ const CampaignDetails = () => {
               Donation History
             </h3>
 
-            {donators.length > 0 ? (
+            {donators?.length > 0 ? (
               <div className="space-y-2">
-                {donators.map((item, index) => (
+                {donators?.map((item, index) => (
                   <div
                     key={index}
                     className="flex justify-between items-center p-3 rounded-lg bg-white dark:bg-[#1c1c24] shadow"
@@ -292,7 +400,11 @@ const CampaignDetails = () => {
                     </p>
 
                     <p className="text-sm font-medium text-gray-800 dark:text-white">
-                    Donated {parseFloat(item.donation).toFixed(4)} ETH
+                      Donated {
+                        Number(item.amount) > 1000000
+                          ? Number(formatEther(BigInt(item.donation))).toFixed(4)
+                          : Number(item.donation || 0).toFixed(4)
+                      } ETH
                     </p>
                   </div>
                 ))}
@@ -300,7 +412,6 @@ const CampaignDetails = () => {
             ) : (
               <p className="text-gray-500">No donations yet</p>
             )}
-
           </div>
         </div>
 
@@ -313,7 +424,7 @@ const CampaignDetails = () => {
               Fund Campaign
             </h3>
 
-            {statusInfo.text === "Active" && (
+            {contractStatus === 0 && (
               <>
                 <input
                   type="number"
@@ -323,7 +434,7 @@ const CampaignDetails = () => {
                   className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 
                              bg-transparent text-gray-800 dark:text-white focus:outline-none"
                 />
-                 {/* ADDED BOX */}
+                {/* ADDED BOX */}
                 {amount && (
                   <div className="w-full p-3 rounded-lg bg-gray-100 dark:bg-[#2a2a33] text-sm text-green-500 dark:text-green-400">
                     ≈ ${usdValue} USD | ₹{inrValue} INR
@@ -340,14 +451,12 @@ const CampaignDetails = () => {
               </>
             )}
 
-            {statusInfo.text !== "Active" && (
-              <div className="w-full py-3 rounded-lg bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-center font-medium">
-                Campaign is {statusInfo.text}
-              </div>
-            )}
+            <div className="w-full py-3 rounded-lg bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-center font-medium">
+              Campaign is {statusInfo.text}
+            </div>
 
             {/* CLOSE BUTTON */}
-            {isOwner && statusInfo.text === "Active" && (
+            {isOwner && contractStatus === 0 && (
               <button
                 onClick={handleClose}
                 disabled={isLoading}
@@ -358,7 +467,7 @@ const CampaignDetails = () => {
             )}
 
             {/* WITHDRAW BUTTON */}
-            {isOwner && statusInfo.text === "Successful" && (
+            {isOwner && contractStatus === 1 && (
               <button
                 onClick={handlePayout}
                 disabled={isLoading}
@@ -369,8 +478,7 @@ const CampaignDetails = () => {
             )}
 
             {/* REFUND BUTTON */}
-            {!isOwner &&
-              statusInfo.text === "Closed" &&
+            {!isOwner && contractStatus === 2 &&
               raised < target && (
                 <button
                   onClick={handleRefund}

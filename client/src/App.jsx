@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { Sidebar, Navbar } from './components';
 import { CampaignDetails, CreateCampaign, Home, Profile , Stats , CampaignFinance , Search } from './pages';
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
 
 const App = () => {
   const [darkMode, setDarkMode] = useState(false);
@@ -46,7 +49,7 @@ const App = () => {
           <Route path="/stats" element={<Stats />} />
           <Route path="/search/:query" element={<Search />} />
         </Routes>
-
+        <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} newestOnTop={false} closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover theme="colored" />
       </div>
     </div>
   );

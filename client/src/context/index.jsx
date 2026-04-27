@@ -4,6 +4,8 @@ import { useActiveAccount, useSendTransaction } from "thirdweb/react";
 import { defineChain, sepolia } from "thirdweb/chains";
 import CrowdfundingABI from "../constants/abi.json";
 import { parseEther, formatEther } from "viem";
+import { useActiveWalletChain } from "thirdweb/react";
+
 
 const StateContext = createContext();
 
@@ -20,26 +22,47 @@ const hardhat = defineChain({
 
 export const StateContextProvider = ({ children }) => {
   const account = useActiveAccount();
+  const activeChain = useActiveWalletChain(); 
   const { mutateAsync: sendTx } = useSendTransaction();
 
   // Detect wallet network
-  const chainId = account?.chainId;
+  const chainId = activeChain?.id;   
 
-  const selectedChain =
-    chainId === 11155111 ? sepolia : hardhat;
+  // ✅ SAFE CHAIN DETECTION (NO FALLBACK BUG)
+  let selectedChain = null;
+  let selectedAddress = null;
 
-  const selectedAddress =
-    chainId === 11155111
-      ? import.meta.env.VITE_SEPOLIA_CONTRACT
-      : import.meta.env.VITE_LOCAL_CONTRACT;
+  if (!chainId) {
+    // wallet not connected yet
+    selectedChain = null;
+  } else if (chainId === 11155111) {
+    // Sepolia
+    selectedChain = sepolia;
+    selectedAddress = import.meta.env.VITE_SEPOLIA_CONTRACT;
+  } else if (chainId === 31337) {
+    // Local Hardhat
+    selectedChain = hardhat;
+    selectedAddress = import.meta.env.VITE_LOCAL_CONTRACT;
+  }
 
-  // Dynamic contract connection
-  const contract = getContract({
-    client,
-    chain: selectedChain,
-    address: selectedAddress,
-    abi: CrowdfundingABI,
-  });
+  // ✅ SAFE CONTRACT INIT
+  const contract = selectedChain
+    ? getContract({
+        client,
+        chain: selectedChain,
+        address: selectedAddress,
+        abi: CrowdfundingABI.abi,
+      })
+    : null;
+
+  // 🔒 Helper guard
+  const checkContract = () => {
+    if (!contract) {
+      console.log("❌ Contract not ready or wrong network");
+      return false;
+    }
+    return true;
+  };
 
   // GET USER CAMPAIGNS
   const getUserCampaigns = async () => {
@@ -55,6 +78,7 @@ export const StateContextProvider = ({ children }) => {
 
   // CREATE CAMPAIGN
   const createCampaign = async (form) => {
+    if (!checkContract()) return;
     const transaction = prepareContractCall({
       contract,
       method:
@@ -75,6 +99,7 @@ export const StateContextProvider = ({ children }) => {
 
   // GET ALL CAMPAIGNS
   const getCampaigns = async () => {
+    if (!checkContract()) return [];
     const data = await readContract({
       contract,
       method:
@@ -90,6 +115,7 @@ export const StateContextProvider = ({ children }) => {
 
   // DONATE
   const donate = async (pId, amount) => {
+    if (!checkContract()) return;
     const transaction = prepareContractCall({
       contract,
       method: "function donateToCampaign(uint256 _id)",
@@ -102,6 +128,7 @@ export const StateContextProvider = ({ children }) => {
 
   // CLOSE CAMPAIGN
   const closeCampaign = async (pId) => {
+    if (!checkContract()) return;
     const transaction = prepareContractCall({
       contract,
       method: "function closeCampaign(uint256 _id)",
@@ -113,6 +140,7 @@ export const StateContextProvider = ({ children }) => {
 
   // WITHDRAW FUNDS
   const payout = async (pId) => {
+    if (!checkContract()) return;
     const transaction = prepareContractCall({
       contract,
       method: "function payout(uint256 _id)",
@@ -124,6 +152,7 @@ export const StateContextProvider = ({ children }) => {
 
   // REFUND DONATION
   const refund = async (pId) => {
+    if (!checkContract()) return;
     const transaction = prepareContractCall({
       contract,
       method: "function refund(uint256 _id)",
@@ -135,6 +164,7 @@ export const StateContextProvider = ({ children }) => {
 
   // GET DONATIONS
   const getDonations = async (pId) => {
+    if (!checkContract()) return [];
     const data = await readContract({
       contract,
       method:

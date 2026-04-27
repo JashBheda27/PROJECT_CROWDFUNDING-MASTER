@@ -5,24 +5,37 @@ import { formatEther, createPublicClient, http } from "viem";
 import Jazzicon, { jsNumberForAddress } from "react-jazzicon";
 import { useEthPrice } from "../context/EthPriceContext";
 import {
-  FaUserCircle,
   FaDonate,
   FaBullhorn,
   FaHistory,
   FaWallet,
 } from "react-icons/fa";
+import { sepolia } from "viem/chains";
+import { useActiveWalletChain } from "thirdweb/react";
 
-const publicClient = createPublicClient({
-  transport: http("http://127.0.0.1:8545"),
-});
+const getClient = (chainId) => {
+  if (chainId === 31337) {
+    return createPublicClient({
+      transport: http("http://127.0.0.1:8545"),
+    });
+  }
+
+  // default = sepolia
+  return createPublicClient({
+    chain: sepolia,
+    transport: http(),
+  });
+};
+
 
 
 
 const Profile = () => {
-  const account = useActiveAccount();
+  const activeChain = useActiveWalletChain();
   const { getCampaigns, getDonations } = useStateContext();
   const { ethPriceUSD, ethPriceINR } = useEthPrice();
   const [walletBalance, setWalletBalance] = useState("0");
+  const account = useActiveAccount();
 
   const [myCampaigns, setMyCampaigns] = useState([]);
   const [donations, setDonations] = useState([]);
@@ -32,10 +45,10 @@ const Profile = () => {
 
   useEffect(() => {
     const loadProfile = async () => {
-      if (!account) return;
-
+      if (!account || !activeChain) return;
+      const client = getClient(activeChain.id);
       // get wallet balance
-      const balance = await publicClient.getBalance({
+      const balance = await client.getBalance({
         address: account.address,
       });
 

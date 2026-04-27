@@ -2,6 +2,7 @@ import React from 'react';
 import { formatEther } from "viem";
 import { tagType, thirdweb } from '../assets';
 import { daysLeft } from '../utils';
+import { analyzeCampaign } from "../utils/campaignAnalysis";
 
 const FundCard = ({
   owner,
@@ -16,24 +17,25 @@ const FundCard = ({
   handleClick
 }) => {
 
- const remainingDays = statusProp === 0 ? daysLeft(deadline) : 0;
+  const remainingDays = statusProp === 0 ? daysLeft(deadline) : 0;
 
   const formattedTarget = target ? formatEther(target) : "0";
   const formattedRaised = amountCollected ? formatEther(amountCollected) : "0";
+  const analysis = analyzeCampaign({ title, description, target, deadline, amountCollected, image, category, donators: [] });
 
   // Campaign Status Logic
   const now = Math.floor(Date.now() / 1000);
-let status = "Active";
-let statusColor = "bg-green-500";
+  let status = "Active";
+  let statusColor = "bg-green-500";
 
-if (statusProp === 1) {
-  status = "Successful";
-  statusColor = "bg-blue-500";
-}
-else if (statusProp === 2) {
-  status = "Closed";
-  statusColor = "bg-gray-500";
-}
+  if (statusProp === 1) {
+    status = "Successful";
+    statusColor = "bg-blue-500";
+  }
+  else if (statusProp === 2) {
+    status = "Closed";
+    statusColor = "bg-gray-500";
+  }
 
   return (
     <div
@@ -63,13 +65,37 @@ else if (statusProp === 2) {
 
       <div className="flex flex-col p-4">
 
-        {/* Category */}
-        <div className="flex flex-row items-center mb-[18px]">
-          <img src={tagType} alt="tag" className="w-[17px] h-[17px] object-contain" />
-          <p className="ml-[12px] mt-[2px] px-2 py-[2px] text-[11px] rounded-full 
-          bg-purple-100 text-purple-600 dark:bg-[#2c2f36] dark:text-purple-400 font-medium">
-            {category || "General"}
-          </p>
+        {/* Category + Risk + Sentiment */}
+        <div className="flex items-center justify-between mb-[18px]">
+
+          {/* LEFT: Category */}
+          <div className="flex items-center">
+            <img src={tagType} alt="tag" className="w-[17px] h-[17px] object-contain" />
+            <p className="ml-[8px] px-2 py-[2px] text-[11px] rounded-full 
+      bg-purple-100 text-purple-600 dark:bg-[#2c2f36] dark:text-purple-400 font-medium">
+              {category || "General"}
+            </p>
+          </div>
+
+          {/* RIGHT: Risk + Sentiment */}
+          <div className="flex gap-2">
+
+            {/* Risk */}
+            <span className={`px-2 py-[2px] text-[10px] rounded-full font-semibold
+      ${analysis.risk.color === "red" ? "bg-red-100 text-red-600" :
+                analysis.risk.color === "yellow" ? "bg-yellow-100 text-yellow-600" :
+                  "bg-green-100 text-green-600"}`}>
+              {analysis.risk.level} Risk
+            </span>
+
+            {/* Sentiment */}
+            <span className={`px-2 py-[2px] text-[10px] rounded-full font-semibold
+      ${analysis.sentiment.color === "red" ? "bg-red-100 text-red-600" :
+                analysis.sentiment.color === "green" ? "bg-green-100 text-green-600" :
+                  "bg-gray-100 text-gray-600"}`}>
+              {analysis.sentiment.type}
+            </span>
+          </div>
         </div>
 
         {/* Title + Description */}
