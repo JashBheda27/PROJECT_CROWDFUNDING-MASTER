@@ -1,19 +1,32 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useActiveWallet } from "thirdweb/react";
-import { logo } from '../assets';
-import { navlinks } from '../constants';
-import { useLocation } from "react-router-dom";
+import { toast } from "react-toastify";
+import { LockKeyhole, Wallet } from "lucide-react";
 import { FaChevronRight, FaChevronLeft } from "react-icons/fa";
+import { logo } from "../assets";
+import { navlinks } from "../constants";
+
 
 const Sidebar = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const wallet = useActiveWallet();
   const [collapsed, setCollapsed] = useState(true);
   const [locked, setLocked] = useState(false);
-  const wallet = useActiveWallet();
-  const location = useLocation();
 
+  const isConnected = Boolean(wallet);
 
+  const connectWallet = async () => {
+    try {
+      await connect({
+        client,
+        wallets,
+      });
+    } catch (error) {
+      console.error("Wallet connection failed:", error);
+    }
+  };
 
   const handleClick = (link) => {
     if (link.name === "logout") {
@@ -22,116 +35,144 @@ const Sidebar = () => {
       return;
     }
 
+    const isHome = link.link === "/";
+
+    if (!isHome && !isConnected) {
+      toast.info(
+        <div>
+          <p className="font-semibold">Connect your wallet first</p>
+          <p className="mt-1 text-sm">
+            Connect your wallet to access this feature.
+          </p>
+          <button
+            onClick={connectWallet}
+            className="mt-3 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Wallet size={16} />
+              {isConnecting ? "Connecting..." : "Connect Wallet"}
+            </span>
+          </button>
+        </div>,
+        { autoClose: 5000 }
+      );
+      return;
+    }
+
     navigate(link.link);
   };
 
   return (
-    <div className="flex flex-col items-center sticky top-5 h-[93vh]">
-
-      {/* LOGO */}
+    <div className="sticky top-5 flex h-[93vh] flex-col items-center">
       <Link to="/" className="mb-6 flex items-center gap-3">
-
-        <div className="w-[44px] h-[44px] rounded-[50px] bg-gray-200 dark:bg-[#2c2f32] flex items-center justify-center">
-          <img src={logo} alt="FundChain" className="w-9 h-9 object-contain" />
+        <div className="flex h-[44px] w-[44px] items-center justify-center rounded-full bg-gray-200 dark:bg-[#2c2f32]">
+          <img src={logo} alt="FundChain" className="h-9 w-9 object-contain" />
         </div>
 
         {!collapsed && (
-          <h1 className="font-extrabold text-[20px] bg-gradient-to-r from-[#4acd8d] to-[#2ebac6] bg-clip-text text-transparent tracking-wide">
+          <h1 className="bg-gradient-to-r from-[#4acd8d] to-[#2ebac6] bg-clip-text text-[20px] font-extrabold tracking-wide text-transparent">
             FundChain
           </h1>
         )}
-
       </Link>
 
-      {/* SIDEBAR */}
       <div
         onMouseEnter={() => !locked && setCollapsed(false)}
         onMouseLeave={() => !locked && setCollapsed(true)}
-        className={
-          `flex flex-col justify-between
-        ${collapsed ? "w-[76px]" : "w-[200px]"}
-        h-full
-        bg-gray-100 dark:bg-[#1c1c24]
-        border border-gray-200 dark:border-[#2c2f32]
-        rounded-[20px] py-4 px-2
-        transition-all duration-300`}>
-
-        {/* 🔝 NAV ITEMS */}
+        className={`flex h-full flex-col justify-between rounded-[20px] border border-gray-200 bg-gray-100 px-2 py-4 transition-all duration-300 dark:border-[#2c2f32] dark:bg-[#1c1c24] ${
+          collapsed ? "w-[76px]" : "w-[220px]"
+        }`}
+      >
         <div className="flex flex-col gap-4">
           {navlinks
-            .filter(link => link.name !== "logout")
-            .map((link) => (
-              <div
-                key={link.name}
-                onClick={() => handleClick(link)}
-                className={`
-          flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer
-          transition-all duration-200
-          ${location.pathname === link.link
-                    ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white"
-                    : "text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#2c2f32]"}`}
-              >
+            .filter((link) => link.name !== "logout")
+            .map((link) => {
+              const isHome = link.link === "/";
+              const isLocked = !isHome && !isConnected;
+              const isActive = location.pathname === link.link;
 
-                {/* 🔥 ICON CIRCLE */}
-                <div className={`
-          w-10 h-10 flex items-center justify-center rounded-full
-          transition-all duration-300
-          ${location.pathname === link.link
+              return (
+                <button
+                  key={link.name}
+                  type="button"
+                  title={
+                    isLocked
+                      ? "Connect wallet to access"
+                      : link.name
+                  }
+                  onClick={() => handleClick(link)}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-all duration-200 ${
+                    isLocked
+                      ? "cursor-not-allowed text-gray-400 opacity-65 dark:text-gray-500"
+                      : isActive
+                      ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white"
+                      : "text-gray-600 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-[#2c2f32]"
+                  }`}
+                >
+                  <div
+                    className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all duration-300 ${
+                      isActive && !isLocked
+                        ? "bg-white/20"
+                        : "bg-gray-200 dark:bg-[#2c2f32]"
+                    }`}
+                  >
+                    <img
+                      src={link.imgUrl}
+                      alt=""
+                      className={`h-5 w-5 ${
+                        isActive && !isLocked ? "invert brightness-0" : ""
+                      } ${isLocked ? "opacity-50" : ""}`}
+                    />
 
-                    ? "bg-white/20"
-                    : "bg-gray-200 dark:bg-[#2c2f32]"
-                  }`}>
-                  <img
-                    src={link.imgUrl}
-                    className={`w-5 h-5 ${location.pathname === link.link ? "invert brightness-0" : ""
-                      }`}
-                  />
-                </div>
+                    {isLocked && (
+                      <LockKeyhole
+                        size={13}
+                        className="absolute -right-1 -top-1 rounded-full bg-gray-100 text-gray-500 dark:bg-[#1c1c24] dark:text-gray-400"
+                      />
+                    )}
+                  </div>
 
-                {/* TEXT */}
-                {!collapsed && (
-                  <span className="text-sm capitalize">
-                    {link.name}
-                  </span>
-                )}
-              </div>
-            ))}
+                  {!collapsed && (
+                    <>
+                      <span className="flex-1 text-sm capitalize">
+                        {link.name}
+                      </span>
+                      {isLocked && (
+                        <LockKeyhole size={15} className="shrink-0" />
+                      )}
+                    </>
+                  )}
+                </button>
+              );
+            })}
         </div>
 
-        {/* 🔻 BOTTOM SECTION */}
-        <div className="flex flex-col gap-3 mt-4">
-
-          {/* LOGOUT */}
-          {navlinks
-            .filter(link => link.name === "logout")
-            .map((link) => (
-              <div
-                key={link.name}
-                onClick={() => handleClick(link)}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#2c2f32]"
-              >
-                <div className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-200 dark:bg-[#2c2f32]">
-                  <img src={link.imgUrl} className="w-5 h-5" />
-                </div>
-                {!collapsed && <span className="text-sm">Logout</span>}
+        <div className="mt-4 flex flex-col gap-3">
+          {isConnected && (
+            <button
+              type="button"
+              onClick={() => handleClick({ name: "logout" })}
+              className="flex items-center gap-3 rounded-xl px-3 py-2 text-gray-600 transition hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-[#2c2f32]"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-200 dark:bg-[#2c2f32]">
+                <Wallet size={19} />
               </div>
-            ))}
+              {!collapsed && <span className="text-sm">Disconnect</span>}
+            </button>
+          )}
 
-          {/* COLLAPSE BUTTON */}
           <button
+            type="button"
             onClick={() => {
-              setLocked(!locked); setCollapsed(!collapsed);
+              setLocked(!locked);
+              setCollapsed(!collapsed);
             }}
-            className="flex items-center justify-center w-full p-2 rounded-full bg-gray-200 dark:bg-[#2c2f32] hover:scale-105 transition">
-            {collapsed ? (
-              <FaChevronRight className={locked ? "text-indigo-500" : ""} />
-            ) : (
-              <FaChevronLeft className={locked ? "text-indigo-500" : ""} />
-            )}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="flex w-full items-center justify-center rounded-full bg-gray-200 p-2 transition hover:scale-105 dark:bg-[#2c2f32]"
+          >
+            {collapsed ? <FaChevronRight /> : <FaChevronLeft />}
           </button>
-
         </div>
-
       </div>
     </div>
   );

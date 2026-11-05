@@ -8,7 +8,7 @@ import { thirdweb } from "../assets";
 import { useEthPrice } from "../context/EthPriceContext";
 import { readContract } from "thirdweb";
 import { prepareContractCall } from "thirdweb";
-import { useSendTransaction , useActiveWalletChain} from "thirdweb/react";
+import { useSendTransaction, useActiveWalletChain } from "thirdweb/react";
 import { toast } from "react-toastify";
 
 const CampaignDetails = () => {
@@ -56,18 +56,34 @@ const CampaignDetails = () => {
     activeAccount?.address?.toLowerCase() ===
     campaign?.owner?.toLowerCase();
 
-  const remainingDays =
-    contractStatus === 0 ? daysLeft(Number(campaign?.deadline)) : 0;
+  const deadline = Number(campaign?.deadline || 0);
+  const now = Math.floor(Date.now() / 1000);
 
-  /* STATUS LOGIC */
+  const isExpired = deadline > 0 && now >= deadline;
+  const targetReached = raised >= target && target > 0;
+
+  const remainingDays = Math.max(
+    0,
+    Math.ceil((deadline - now) / 86400)
+  );
+
+  // Derive the displayed status without waiting for a transaction.
+  const effectiveStatus =
+    contractStatus === 0 && isExpired
+      ? targetReached ? 1 : 3
+      : Number(contractStatus);
+
   const getStatusInfo = () => {
-    if (contractStatus === 1)
+    if (effectiveStatus === 1)
       return { text: "Successful", color: "bg-blue-500" };
 
-    if (contractStatus === 0)
-      return { text: "Active", color: "bg-green-500" };
+    if (effectiveStatus === 2)
+      return { text: "Closed", color: "bg-gray-500" };
 
-    return { text: "Closed", color: "bg-gray-500" };
+    if (effectiveStatus === 3)
+      return { text: "Ended", color: "bg-red-500" };
+
+    return { text: "Active", color: "bg-green-500" };
   };
 
   const statusInfo = getStatusInfo();
@@ -227,7 +243,7 @@ const CampaignDetails = () => {
       });
 
       await sendTx(tx);
-      
+
       const contractAddress = contract?.address;
       const storageKey = `refundHistory_${chainId}_${contractAddress}`;
 
@@ -424,7 +440,7 @@ const CampaignDetails = () => {
               Fund Campaign
             </h3>
 
-            {contractStatus === 0 && (
+            {effectiveStatus === 0 && !isExpired && !targetReached && (
               <>
                 <input
                   type="number"
@@ -456,7 +472,7 @@ const CampaignDetails = () => {
             </div>
 
             {/* CLOSE BUTTON */}
-            {isOwner && contractStatus === 0 && (
+            {isOwner && effectiveStatus === 0 && !isExpired && (
               <button
                 onClick={handleClose}
                 disabled={isLoading}
@@ -467,7 +483,7 @@ const CampaignDetails = () => {
             )}
 
             {/* WITHDRAW BUTTON */}
-            {isOwner && contractStatus === 1 && (
+            {isOwner && effectiveStatus === 1 && (
               <button
                 onClick={handlePayout}
                 disabled={isLoading}
@@ -478,14 +494,15 @@ const CampaignDetails = () => {
             )}
 
             {/* REFUND BUTTON */}
-            {!isOwner && contractStatus === 2 &&
+            {!isOwner &&
+              (effectiveStatus === 2 || effectiveStatus === 3) &&
               raised < target && (
                 <button
                   onClick={handleRefund}
                   disabled={isLoading}
                   className="w-full py-3 rounded-lg bg-yellow-500 hover:bg-yellow-600 text-white font-medium transition"
                 >
-                  Claim Refund
+                  {isLoading ? "Processing..." : "Claim Refund"}
                 </button>
               )}
 

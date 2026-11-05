@@ -6,6 +6,7 @@ import { CustomButton } from './';
 import { logo, menu, search, thirdweb } from '../assets';
 import { navlinks } from '../constants';
 import WalletDropdown from "../components/WalletDropdown";
+import { toast } from "react-toastify";
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -38,7 +39,7 @@ const Navbar = () => {
   return (
     <div className="flex md:flex-row flex-col-reverse justify-between mb-[35px] gap-6 transition-colors duration-300">
       <div className="lg:flex-1 flex flex-row max-w-[458px] py-2 pl-4 pr-2 h-[52px]  rounded-[100px] bg-gray-100 dark:bg-[#1c1c24]" >
-        <input type="text"  placeholder="Search for campaigns" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => {
+        <input type="text" placeholder="Search for campaigns" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => {
           if (e.key === "Enter") {
             navigate(`/search/${searchQuery}`);
           }
@@ -83,7 +84,7 @@ const Navbar = () => {
             }}
           />
         )}
-      {address && <WalletDropdown />}
+        {address && <WalletDropdown />}
       </div>
 
       {/* Small screen navigation */}
@@ -99,7 +100,7 @@ const Navbar = () => {
           onClick={() => setToggleDrawer((prev) => !prev)}
         />
 
-        <div className={`absolute top-[60px] right-0 left-0 bg-white dark:bg-[#1c1c24] z-10 shadow-secondary py-4 ${!toggleDrawer ? '-translate-y-[100vh]' : 'translate-y-0'} transition-all duration-700`}>
+        <div className={`fixed inset-x-0 top-[80px] bottom-0 z-[9999] overflow-y-auto bg-white dark:bg-[#1c1c24] shadow-xl py-4 ${!toggleDrawer ? "-translate-x-full" : "translate-x-0"} transition-transform duration-300 ease-in-out`}>
           <ul className="mb-4">
             {navlinks.map((link) => (
               <li
@@ -108,6 +109,17 @@ const Navbar = () => {
                 onClick={() => {
                   setIsActive(link.name);
                   setToggleDrawer(false);
+
+                  if (link.name.toLowerCase() === "logout") {
+                    navigate("/");
+                    return;
+                  }
+
+                  if (link.link !== "/" && !address) {
+                    toast.info("Please connect your wallet to access this page.");
+                    return;
+                  }
+
                   navigate(link.link);
                 }}
               >

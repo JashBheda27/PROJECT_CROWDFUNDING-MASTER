@@ -3,7 +3,7 @@ pragma solidity ^0.8.9;
 
 contract CrowdFunding {
 
-    enum Status { Active, Successful, Closed }
+    enum Status { Active, Successful, Closed , Ended }
 
     struct Campaign {
     address owner;
@@ -121,22 +121,23 @@ contract CrowdFunding {
         emit CampaignClosed(_id);
     }
 
-    // AUTO STATUS UPDATE
+    // AUTOMATIC STATUS UPDATE
     function updateCampaignStatus(uint256 _id) public {
+    require(_id < numberOfCampaigns, "Invalid campaign ID");
 
-        Campaign storage campaign = campaigns[_id];
+    Campaign storage campaign = campaigns[_id];
 
-        if (
-            block.timestamp >= campaign.deadline &&
-            campaign.status == Status.Active
-        ) {
-            if (campaign.amountCollected >= campaign.target) {
-                campaign.status = Status.Successful;
-            } else {
-                campaign.status = Status.Closed;
-            }
-        }
-    }
+    if (
+        block.timestamp >= campaign.deadline &&
+        campaign.status == Status.Active
+     ) {
+        if (campaign.amountCollected >= campaign.target) {
+            campaign.status = Status.Successful;
+        } else {
+            campaign.status = Status.Ended;
+         }
+     }
+ }
 
     // OWNER WITHDRAW
     function payout(uint256 _id) public {
@@ -165,29 +166,35 @@ contract CrowdFunding {
         emit FundsWithdrawn(_id, available);
     }
 
-    // REFUND FOR FAILED / CLOSED CAMPAIGN
+   // REFUND FOR FAILED, CLOSED OR ENDED CAMPAIGNS
     function refund(uint256 _id) public {
+    require(_id < numberOfCampaigns, "Invalid campaign ID");
 
-        Campaign storage campaign = campaigns[_id];
+    Campaign storage campaign = campaigns[_id];
 
-        updateCampaignStatus(_id);
+    updateCampaignStatus(_id);
 
-        require(
-            campaign.status == Status.Closed,
-            "Refunds only for failed campaigns"
-        );
+    require(
+        campaign.status == Status.Closed ||
+        campaign.status == Status.Ended,
+        "Refunds only for failed campaigns"
+    );
 
-        uint256 donatedAmount = donationsByUser[_id][msg.sender];
+    uint256 donatedAmount = donationsByUser[_id][msg.sender];
 
-        require(donatedAmount > 0, "No donation");
+    require(donatedAmount > 0, "No donation");
 
-        donationsByUser[_id][msg.sender] = 0;
+    // Update state before transferring funds
+    donationsByUser[_id][msg.sender] = 0;
 
-        (bool success, ) = payable(msg.sender).call{value: donatedAmount}("");
-        require(success, "Refund failed");
+    (bool success, ) = payable(msg.sender).call{
+        value: donatedAmount
+    }("");
 
-        emit RefundIssued(_id, msg.sender, donatedAmount);
-    }
+    require(success, "Refund failed");
+
+    emit RefundIssued(_id, msg.sender, donatedAmount);
+   }
 
     // GET DONATORS
     function getDonators(uint256 _id)

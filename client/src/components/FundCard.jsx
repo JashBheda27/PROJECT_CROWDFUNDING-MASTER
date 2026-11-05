@@ -17,24 +17,49 @@ const FundCard = ({
   handleClick
 }) => {
 
-  const remainingDays = statusProp === 0 ? daysLeft(deadline) : 0;
+  const now = Math.floor(Date.now() / 1000);
+  const deadlineTime = Number(deadline || 0);
+  const isExpired = deadlineTime > 0 && now >= deadlineTime;
+  const targetReached =
+    BigInt(amountCollected || 0) >= BigInt(target || 0) &&
+    BigInt(target || 0) > 0;
+
+  const effectiveStatus =
+    Number(statusProp) === 0 && isExpired
+      ? targetReached ? 1 : 3
+      : Number(statusProp);
+
+  const remainingDays = Math.max(
+    0,
+    Math.ceil((deadlineTime - now) / 86400)
+  );
 
   const formattedTarget = target ? formatEther(target) : "0";
   const formattedRaised = amountCollected ? formatEther(amountCollected) : "0";
-  const analysis = analyzeCampaign({ title, description, target, deadline, amountCollected, image, category, donators: [] });
 
-  // Campaign Status Logic
-  const now = Math.floor(Date.now() / 1000);
+  const analysis = analyzeCampaign({
+    title,
+    description,
+    target,
+    deadline,
+    amountCollected,
+    image,
+    category,
+    donators: [],
+  });
+
   let status = "Active";
   let statusColor = "bg-green-500";
 
-  if (statusProp === 1) {
+  if (effectiveStatus === 1) {
     status = "Successful";
     statusColor = "bg-blue-500";
-  }
-  else if (statusProp === 2) {
+  } else if (effectiveStatus === 2) {
     status = "Closed";
     statusColor = "bg-gray-500";
+  } else if (effectiveStatus === 3) {
+    status = "Ended";
+    statusColor = "bg-red-500";
   }
 
   return (
