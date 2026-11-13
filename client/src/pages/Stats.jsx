@@ -152,6 +152,7 @@ const Stats = () => {
                 donor: d.donator,
                 amount: formatDonation(d.donation),
                 campaign: camp.title,
+                timestamp: d.timestamp,
               });
             });
           }
@@ -177,7 +178,11 @@ const Stats = () => {
           totalWithdrawn,
         });
 
-        setRecentDonations(allDonations.reverse().slice(0, 10));
+        const sortedDonations = [...allDonations]
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .slice(0, 10);
+
+        setRecentDonations(sortedDonations);
         setCategoryStats(categories);
         setTopCampaigns(sortedCampaigns);
       } catch (err) {
@@ -215,8 +220,8 @@ const Stats = () => {
   const successRate =
     completedCampaigns > 0
       ? Math.round(
-          (stats.successfulCampaigns / completedCampaigns) * 100
-        )
+        (stats.successfulCampaigns / completedCampaigns) * 100
+      )
       : 0;
 
   const popularCategory =
@@ -517,9 +522,9 @@ const Stats = () => {
               const percentage =
                 target > 0n
                   ? Math.min(
-                      Number((collected * 10000n) / target) / 100,
-                      100
-                    )
+                    Number((collected * 10000n) / target) / 100,
+                    100
+                  )
                   : 0;
 
               return (
@@ -589,6 +594,7 @@ const Stats = () => {
                 <TableHead>Donor</TableHead>
                 <TableHead>Campaign</TableHead>
                 <TableHead>Amount</TableHead>
+                <TableHead>Date & Time</TableHead>
               </TableRow>
             </TableHeader>
 
@@ -596,7 +602,7 @@ const Stats = () => {
 
               {recentDonations.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center py-10">
+                  <TableCell colSpan={4} className="text-center py-10">
                     <EmptyState text="No donations received yet" />
                   </TableCell>
                 </TableRow>
@@ -620,6 +626,19 @@ const Stats = () => {
 
                     <TableCell className="font-semibold text-gray-900 dark:text-white">
                       {formatETH(don.amount)}
+                    </TableCell>
+
+                    <TableCell className="text-gray-600 dark:text-gray-300">
+                      {don.timestamp
+                        ? new Date(don.timestamp * 1000).toLocaleString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true,
+                        })
+                        : "Unavailable"}
                     </TableCell>
 
                   </TableRow>
@@ -688,8 +707,8 @@ const Stats = () => {
           value={
             stats.totalCampaigns > 0
               ? (
-                  stats.totalDonations / stats.totalCampaigns
-                ).toFixed(1)
+                stats.totalDonations / stats.totalCampaigns
+              ).toFixed(1)
               : "0"
           }
           description="Donations per campaign"

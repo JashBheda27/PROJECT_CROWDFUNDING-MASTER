@@ -22,11 +22,11 @@ const hardhat = defineChain({
 
 export const StateContextProvider = ({ children }) => {
   const account = useActiveAccount();
-  const activeChain = useActiveWalletChain(); 
+  const activeChain = useActiveWalletChain();
   const { mutateAsync: sendTx } = useSendTransaction();
 
   // Detect wallet network
-  const chainId = activeChain?.id;   
+  const chainId = activeChain?.id;
 
   // ✅ SAFE CHAIN DETECTION (NO FALLBACK BUG)
   let selectedChain = null;
@@ -48,11 +48,11 @@ export const StateContextProvider = ({ children }) => {
   // ✅ SAFE CONTRACT INIT
   const contract = selectedChain
     ? getContract({
-        client,
-        chain: selectedChain,
-        address: selectedAddress,
-        abi: CrowdfundingABI.abi,
-      })
+      client,
+      chain: selectedChain,
+      address: selectedAddress,
+      abi: CrowdfundingABI.abi,
+    })
     : null;
 
   // 🔒 Helper guard
@@ -163,27 +163,33 @@ export const StateContextProvider = ({ children }) => {
   };
 
   // GET DONATIONS
+  // GET DONATIONS WITH BLOCKCHAIN TIMESTAMPS
   const getDonations = async (pId) => {
     if (!checkContract()) return [];
-    const data = await readContract({
-      contract,
-      method:
-        "function getDonators(uint256 _id) view returns (address[], uint256[])",
-      params: [pId],
-    });
+
+    const [data, timestamps] = await Promise.all([
+      readContract({
+        contract,
+        method:
+          "function getDonators(uint256 _id) view returns (address[], uint256[])",
+        params: [pId],
+      }),
+
+      readContract({
+        contract,
+        method:
+          "function getDonationTimes(uint256 _id) view returns (uint256[])",
+        params: [pId],
+      }),
+    ]);
 
     const [donators, donations] = data;
 
-    const parsed = [];
-
-    for (let i = 0; i < donators.length; i++) {
-      parsed.push({
-        donator: donators[i],
-        donation: formatEther(donations[i]),
-      });
-    }
-
-    return parsed;
+    return donators.map((donator, index) => ({
+      donator,
+      donation: formatEther(donations[index]),
+      timestamp: Number(timestamps[index] ?? 0n),
+    }));
   };
 
   // USER DONATION STATS
@@ -233,5 +239,7 @@ export const StateContextProvider = ({ children }) => {
   );
 };
 
-export const useStateContext = () => useContext(StateContext);
+const useStateContext = () => useContext(StateContext);
+
+export { useStateContext };
 

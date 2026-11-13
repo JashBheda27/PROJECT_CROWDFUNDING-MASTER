@@ -21,7 +21,7 @@ const Sidebar = () => {
     try {
       await connect({
         client,
-        wallets,
+        wallet,
       });
     } catch (error) {
       console.error("Wallet connection failed:", error);
