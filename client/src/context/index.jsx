@@ -97,20 +97,36 @@ export const StateContextProvider = ({ children }) => {
     await sendTx(transaction);
   };
 
-  // GET ALL CAMPAIGNS
+  // GET ALL CAMPAIGNS 
   const getCampaigns = async () => {
     if (!checkContract()) return [];
+
     const data = await readContract({
       contract,
       method:
         "function getCampaigns() view returns ((address owner, string title, string description, uint256 target, uint256 deadline, uint256 amountCollected, uint256 withdrawnAmount, string image, string category, uint8 status)[])",
     });
 
-    return data.map((campaign, i) => ({
-      ...campaign,
-      status: Number(campaign.status),
-      pId: i,
-    }));
+    const campaignsWithDates = await Promise.all(
+      data.map(async (campaign, i) => {
+        // Read individual campaign from public mapping
+        const details = await readContract({
+          contract,
+          method:
+            "function campaigns(uint256) view returns (address, string, string, uint256, uint256, uint256, uint256, uint256, string, string, uint8, bool)",
+          params: [BigInt(i)],
+        });
+
+        return {
+          ...campaign,
+          createdAt: Number(details[7]),
+          status: Number(campaign.status),
+          pId: i,
+        };
+      })
+    );
+
+    return campaignsWithDates;
   };
 
   // DONATE
