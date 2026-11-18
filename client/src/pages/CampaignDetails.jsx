@@ -437,7 +437,7 @@ const CampaignDetails = () => {
       toast.error(
         err?.reason ||
         err?.shortMessage ||
-        "Withdrawal failed."
+        "Withdrawal failed or  funds already withdrawn."
       );
 
     } finally {
@@ -581,7 +581,7 @@ const CampaignDetails = () => {
         err?.reason ||
         err?.shortMessage ||
         err?.message ||
-        "Refund failed."
+        "Refund failed or funds already claimed."
       );
 
     } finally {
